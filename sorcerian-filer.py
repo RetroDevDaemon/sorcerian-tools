@@ -53,6 +53,7 @@ class SorcerianFile():
         p = [ o[0], o[1], o[2], 1, 16 ]
         end = fuzzy_search(_data, p)            # slow and lazy, fix later
         end += 256 + 16        # skip header and data 
+        print(hex(end))
         while (last < end):
             while (ofs < last + 256):   # todo - take this from d88 header 
                 b.append(_data[ofs])
@@ -102,18 +103,20 @@ class DiskData():
 ####
 
 
-def fuzzy_search(data, pattern):
-    i = 0 
+def fuzzy_search(data, pattern, step=0x110, start=0x2b0):
+    i = 0 + start
     pi = 0
     while (i < len(data)):  # find the single byte. 
         while (data[i] != pattern[pi]):
-            i += 1 
+            i += step #1 
+            if (i > (len(data))): # catch for 'step'
+                return -1
         pi += 1             # then check if its a match to the whole pattern
         while(data[i + pi] == pattern[pi]):
             pi += 1 
             if(pi == len(pattern)):
                 return (i)  # if so, return the location  
-        i += pi 
+        i += step
         pi = 0  # if its not, keep going. 
     return -1
 ####
