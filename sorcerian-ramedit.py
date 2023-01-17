@@ -3,19 +3,13 @@
 
 import sys, os, math
 from PyQt6.QtWidgets import \
-    QApplication, \
-    QWidget, \
-    QLabel, \
-    QMainWindow, \
-    QGridLayout, \
-    QFileDialog, \
-    QPushButton, \
-    QListWidget, \
-    QMessageBox, \
-    QAbstractItemView, \
-    QMenuBar, \
-    QMenu
+    QApplication, QWidget, QLabel, \
+    QMainWindow, QGridLayout, QFileDialog, \
+    QPushButton, QListWidget, QMessageBox, \
+    QAbstractItemView, QMenuBar, QMenu, \
+    QToolBar, QTextEdit, QComboBox
 from PyQt6.QtGui import QFont, QAction
+from PyQt6.QtCore import QSize
     
 
 class SorcerianRAM():
@@ -67,6 +61,24 @@ def warning_size(n):
     m.exec()
 ####
 
+#pageLengths = [ 0x1000, 0x3800, 0x400, 0x400, 
+#    0x400, 0x400, 0x800, 0x800, 
+#    0xe00, 0xa00, 0x2000, 0x2000, 
+#    0x2000, 0x800, 0x800, 0x800 ]
+#txtPageLengths = [ 
+#    0x400, 0x400, 0x100, 0x100, 0x600
+#]
+#subPageLengths = [ 
+#    0x2000, 0x2000, 0x1000, 0xc00, 0x400, 0x1000, 0x1000
+#]
+pageBoundaries = [ 
+    0, 0x1000, 0x4800, 0x4c00, 
+    0x5000, 0x5400, 0x5800, 0x6000, 
+    0x6800, 0x7600, 0x8000, 0xa000, 
+    0xc000, 0xe000, 0xe800, 0xf000, 
+    0xf400, 0xf800, 0xf900, 0xfa00
+]
+
 class MainWindow(QMainWindow):
 #""" Main App """
     def __init__(self):
@@ -76,16 +88,73 @@ class MainWindow(QMainWindow):
         self.ram = []
         self.txtram = []
         self.subram = []
+
+        self.currentPage = 0 
         
         self.setWindowTitle("Sorcerian PC-88 RAM Dump Editor")
-        self.setFixedSize(600, 400)
+        self.setFixedSize(800, 400)
         
-        self.grid = QGridLayout()
+        grid = QGridLayout()
+        
+        self.pageSelect = QComboBox()
+        self.pageSelect.addItem("[$0000] BIOS (Main)")
+        self.pageSelect.addItem("[$1000] Main Prog PRNO2")
+        self.pageSelect.addItem("[$4800] Magic/Monster Work RAM")
+        self.pageSelect.addItem("[$4C00] Monster Code")
+        self.pageSelect.addItem("[$5000] Player Parameters")
+        self.pageSelect.addItem("[$5400] Position, patterns, etc")
+        self.pageSelect.addItem("[$5800] Map")
+        self.pageSelect.addItem("[$6000] SFX")
+        self.pageSelect.addItem("[$6800] BGM")
+        self.pageSelect.addItem("[$7600] Scenario")
+        self.pageSelect.addItem("[$8000] Map GFX + Char Font")
+        self.pageSelect.addItem("[$A000] Overlay Buffer")
+        self.pageSelect.addItem("[$C000] Player GFX")
+        self.pageSelect.addItem("[$E000] Magic GFX")
+        self.pageSelect.addItem("[$E800] Monster GFX")
+
+        self.pageSelect.addItem("[TXT $F000] Player Params (backup)")
+        self.pageSelect.addItem("[TXT $F400] Temp VRAM (txt)")
+        self.pageSelect.addItem("[TXT $F800] Scenario Item Data")
+        self.pageSelect.addItem("[TXT $F900] Scenario Work RAM")
+        self.pageSelect.addItem("[TXT $FA00] Text Mask/Empty")
+
+        self.pageSelect.addItem("[SUB $0000] Disk System ROM")
+        self.pageSelect.addItem("[SUB $2000] *Not Initialized*")
+        self.pageSelect.addItem("[SUB $4000] Disk Buffer and Cache")
+        self.pageSelect.addItem("[SUB $5000] Castle NPC Parameters")
+        self.pageSelect.addItem("[SUB $5C00] Monster Desc. Text")
+        self.pageSelect.addItem("[SUB $6000] Directory Buffer")
+        self.pageSelect.addItem("[SUB $7000] BIOS (Sub)")
+        self.pageSelect.currentIndexChanged.connect(self.pageChanged)
+
+        self.hexDisplay = QTextEdit()
+        self.hexDisplay.setFont(QFont("Courier", 12))
+        
+        grid.addWidget(self.pageSelect, 0, 0)
+        grid.addWidget(self.hexDisplay, 1, 1)
+
         container = QWidget()
-        container.setLayout(self.grid)
-        
+        container.setLayout(grid)
         self.setCentralWidget(container)
     ####
+    def resetHexDisplay(self, page):
+        i = 0 
+        st = pageBoundaries[page]
+        o = '[$' + '{:04X}'.format(st) + '] '
+        l = 0 
+        while ((i+st) < pageBoundaries[page+1]):
+            o = o + '{:02X}'.format(self.ram[st+i]) + " "
+            l += 1 
+            i += 1 
+            if(l == 16):
+                o += "\n[$" + '{:04X}'.format(st+i) + "] "
+                l = 0
+        self.hexDisplay.setText(o)
+    ####
+    def pageChanged(self, page):
+        self.page = page 
+        self.resetHexDisplay(self.page)
     def populateMenuBar(self):
         menu = self.menuBar()
         fileMenu = menu.addMenu("&File")
@@ -96,9 +165,22 @@ class MainWindow(QMainWindow):
         act_opentr.triggered.connect(self.openTRFile)
         act_opensr = QAction("Open SUBRAM dump...", self)
         act_opensr.triggered.connect(self.openSRFile)
-        
         act_qsre = QAction("Close App", self)
         act_qsre.triggered.connect(self.quit_sorcram)
+
+        toolbar = QToolBar("toolbar")
+        toolbar.setIconSize(QSize(32, 32))
+        self.addToolBar(toolbar)
+        
+        tool_open = QAction("Main RAM...", self)
+        tool_open.triggered.connect(self.openFile)
+        toolbar.addAction(tool_open)
+        tool_opentxt = QAction("TXT/HI RAM...", self)
+        tool_opentxt.triggered.connect(self.openTRFile)
+        toolbar.addAction(tool_opentxt)
+        tool_opensub = QAction("Sub RAM...", self)
+        tool_opensub.triggered.connect(self.openSRFile)
+        toolbar.addAction(tool_opensub)
         
         fileMenu.addAction(act_open)
         fileMenu.addAction(act_opentr)
@@ -123,6 +205,8 @@ class MainWindow(QMainWindow):
             msg_load_ok(tgt) 
         except Exception as e:
             error_new_exception(e)
+        self.resetHexDisplay(self.currentPage)
+        
     ####
     def openTRFile(self, s):
         self.openFile(s, e_size=4096, tgt="TXT")
