@@ -1,5 +1,6 @@
 # sorcerian-tools
 
+
 ## sorcerian-filer.py
 lets you extract files from sorcerian disks.
 
@@ -15,4 +16,8 @@ character gfx data plugin for YY-CHR
 
 ## sorc-pal.dat 
 YY-CHR palette file for PC-88
+
+http://retropc.net/pi/sorcerian/sorc_pi.html
+
+(written in Python 3.10)
 
